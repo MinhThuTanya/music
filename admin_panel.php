@@ -111,9 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // === 4. Удаление пользователя ===
 if (isset($_GET['delete_user'])) {
     $id = (int)$_GET['delete_user'];
-    // Запрещаем удалять самого себя (админа) – предполагаем, что админ тоже есть в таблице users? 
-    // В нашем проекте админ в отдельной таблице, поэтому можно удалять любого.
-    // Но на всякий случай проверим, не совпадает ли логин с авторизованным (у админа другой логин).
     try {
         $stmt = $pdo->prepare("DELETE FROM messages WHERE user_id = ?");
         $stmt->execute([$id]);
@@ -168,6 +165,44 @@ $users = $pdo->query("SELECT id, login, full_name, email, phone, created_at FROM
         .btn-save { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); }
         .table { color: white; }
         .table th { background: #2a2a2a; }
+
+        /* Стили для кубиков-вкладок */
+        .tabs-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            background: #2a2a2a;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .tab-btn i {
+            margin-right: 8px;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            box-shadow: 0 5px 15px rgba(255,107,74,0.3);
+        }
+        .tab-btn:hover:not(.active) {
+            background: #3a3a3a;
+            color: #ddd;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -185,116 +220,141 @@ $users = $pdo->query("SELECT id, login, full_name, email, phone, created_at FROM
         <div class="alert alert-danger"><?= $error_msg ?></div>
     <?php endif; ?>
 
+    <!-- КУБИКИ-ВКЛАДКИ -->
+    <div class="tabs-container">
+        <button class="tab-btn active" data-tab="messages">📋 Обращения пользователей</button>
+        <button class="tab-btn" data-tab="users">👥 Управление пользователями</button>
+    </div>
+
     <!-- ========== РАЗДЕЛ 1: ОБРАЩЕНИЯ ПОЛЬЗОВАТЕЛЕЙ ========== -->
-    <div class="section-card">
-        <h2 class="section-title">📬 Обращения пользователей</h2>
-        <?php if (empty($messages)): ?>
-            <p>Нет обращений.</p>
-        <?php else: ?>
-            <?php foreach ($messages as $msg): ?>
-                <div class="message-card">
-                    <div><strong>От:</strong> <?= htmlspecialchars($msg['full_name']) ?> (<?= htmlspecialchars($msg['login']) ?>)</div>
-                    <div><strong>Email:</strong> <?= htmlspecialchars($msg['email']) ?></div>
-                    <div><strong>Тема:</strong> <?= htmlspecialchars($msg['subject'] ?: '—') ?></div>
-                    <div><strong>Сообщение:</strong><br><?= nl2br(htmlspecialchars($msg['message'])) ?></div>
-                    <div><strong>Дата:</strong> <?= date('d.m.Y H:i', strtotime($msg['created_at'])) ?></div>
-                    <?php if (!empty($msg['admin_reply'])): ?>
-                        <div class="reply-text">
-                            <strong>📎 Ваш ответ:</strong><br><?= nl2br(htmlspecialchars($msg['admin_reply'])) ?><br>
-                            <small><?= date('d.m.Y H:i', strtotime($msg['reply_date'])) ?></small>
-                        </div>
-                    <?php endif; ?>
-                    <form method="post" class="mt-3">
-                        <input type="hidden" name="action" value="reply_message">
-                        <input type="hidden" name="message_id" value="<?= $msg['id'] ?>">
-                        <textarea name="reply_text" rows="2" placeholder="Напишите ответ..." class="form-control"><?= htmlspecialchars($msg['admin_reply'] ?? '') ?></textarea>
-                        <button type="submit" class="btn btn-primary mt-2">📨 Отправить ответ</button>
-                    </form>
-                </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
+    <div id="tab-messages" class="tab-content active">
+        <div class="section-card">
+            <h2 class="section-title">📬 Обращения пользователей</h2>
+            <?php if (empty($messages)): ?>
+                <p>Нет обращений.</p>
+            <?php else: ?>
+                <?php foreach ($messages as $msg): ?>
+                    <div class="message-card">
+                        <div><strong>От:</strong> <?= htmlspecialchars($msg['full_name']) ?> (<?= htmlspecialchars($msg['login']) ?>)</div>
+                        <div><strong>Email:</strong> <?= htmlspecialchars($msg['email']) ?></div>
+                        <div><strong>Тема:</strong> <?= htmlspecialchars($msg['subject'] ?: '—') ?></div>
+                        <div><strong>Сообщение:</strong><br><?= nl2br(htmlspecialchars($msg['message'])) ?></div>
+                        <div><strong>Дата:</strong> <?= date('d.m.Y H:i', strtotime($msg['created_at'])) ?></div>
+                        <?php if (!empty($msg['admin_reply'])): ?>
+                            <div class="reply-text">
+                                <strong>📎 Ваш ответ:</strong><br><?= nl2br(htmlspecialchars($msg['admin_reply'])) ?><br>
+                                <small><?= date('d.m.Y H:i', strtotime($msg['reply_date'])) ?></small>
+                            </div>
+                        <?php endif; ?>
+                        <form method="post" class="mt-3">
+                            <input type="hidden" name="action" value="reply_message">
+                            <input type="hidden" name="message_id" value="<?= $msg['id'] ?>">
+                            <textarea name="reply_text" rows="2" placeholder="Напишите ответ..." class="form-control"><?= htmlspecialchars($msg['admin_reply'] ?? '') ?></textarea>
+                            <button type="submit" class="btn btn-primary mt-2">📨 Отправить ответ</button>
+                        </form>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
     </div>
 
     <!-- ========== РАЗДЕЛ 2: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ========== -->
-    <div class="section-card">
-        <h2 class="section-title">👥 Управление пользователями</h2>
+    <div id="tab-users" class="tab-content">
+        <div class="section-card">
+            <h2 class="section-title">👥 Управление пользователями</h2>
 
-        <!-- Форма редактирования пользователя (если выбран) -->
-        <?php if ($edit_user_id > 0 && !empty($edit_user)): ?>
-            <div class="admin-edit-form">
-                <h3>Редактирование пользователя: <?= htmlspecialchars($edit_user['login']) ?></h3>
-                <form method="post">
-                    <input type="hidden" name="action" value="edit_user">
-                    <input type="hidden" name="user_id" value="<?= $edit_user['id'] ?>">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+            <!-- Форма редактирования пользователя (если выбран) -->
+            <?php if ($edit_user_id > 0 && !empty($edit_user)): ?>
+                <div class="admin-edit-form">
+                    <h3>Редактирование пользователя: <?= htmlspecialchars($edit_user['login']) ?></h3>
+                    <form method="post">
+                        <input type="hidden" name="action" value="edit_user">
+                        <input type="hidden" name="user_id" value="<?= $edit_user['id'] ?>">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
 
-                    <div class="form-group">
-                        <label>ФИО *</label>
-                        <input type="text" name="full_name" value="<?= htmlspecialchars($edit_user['full_name'] ?? '') ?>" class="form-control">
-                        <?php if (isset($edit_errors['full_name'])): ?>
-                            <span class="field-error"><?= $edit_errors['full_name'] ?></span>
-                        <?php endif; ?>
-                    </div>
+                        <div class="form-group">
+                            <label>ФИО *</label>
+                            <input type="text" name="full_name" value="<?= htmlspecialchars($edit_user['full_name'] ?? '') ?>" class="form-control">
+                            <?php if (isset($edit_errors['full_name'])): ?>
+                                <span class="field-error"><?= $edit_errors['full_name'] ?></span>
+                            <?php endif; ?>
+                        </div>
 
-                    <div class="form-group">
-                        <label>Email *</label>
-                        <input type="email" name="email" value="<?= htmlspecialchars($edit_user['email'] ?? '') ?>" class="form-control">
-                        <?php if (isset($edit_errors['email'])): ?>
-                            <span class="field-error"><?= $edit_errors['email'] ?></span>
-                        <?php endif; ?>
-                    </div>
+                        <div class="form-group">
+                            <label>Email *</label>
+                            <input type="email" name="email" value="<?= htmlspecialchars($edit_user['email'] ?? '') ?>" class="form-control">
+                            <?php if (isset($edit_errors['email'])): ?>
+                                <span class="field-error"><?= $edit_errors['email'] ?></span>
+                            <?php endif; ?>
+                        </div>
 
-                    <div class="form-group">
-                        <label>Телефон (необязательно)</label>
-                        <input type="tel" name="phone" value="<?= htmlspecialchars($edit_user['phone'] ?? '') ?>" class="form-control">
-                        <?php if (isset($edit_errors['phone'])): ?>
-                            <span class="field-error"><?= $edit_errors['phone'] ?></span>
-                        <?php endif; ?>
-                    </div>
+                        <div class="form-group">
+                            <label>Телефон (необязательно)</label>
+                            <input type="tel" name="phone" value="<?= htmlspecialchars($edit_user['phone'] ?? '') ?>" class="form-control">
+                            <?php if (isset($edit_errors['phone'])): ?>
+                                <span class="field-error"><?= $edit_errors['phone'] ?></span>
+                            <?php endif; ?>
+                        </div>
 
-                    <button type="submit" class="btn btn-save">💾 Сохранить изменения</button>
-                    <a href="admin_panel.php" class="btn btn-secondary ms-2">Отмена</a>
-                </form>
-            </div>
-        <?php endif; ?>
+                        <button type="submit" class="btn btn-save">💾 Сохранить изменения</button>
+                        <a href="admin_panel.php" class="btn btn-secondary ms-2">Отмена</a>
+                    </form>
+                </div>
+            <?php endif; ?>
 
-        <!-- Таблица всех пользователей -->
-        <?php if (empty($users)): ?>
-            <p>Нет зарегистрированных пользователей.</p>
-        <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-dark table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Логин</th>
-                            <th>ФИО</th>
-                            <th>Email</th>
-                            <th>Телефон</th>
-                            <th>Дата регистрации</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($users as $user): ?>
+            <!-- Таблица всех пользователей -->
+            <?php if (empty($users)): ?>
+                <p>Нет зарегистрированных пользователей.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
                             <tr>
-                                <td><?= $user['id'] ?></td>
-                                <td><?= htmlspecialchars($user['login']) ?></td>
-                                <td><?= htmlspecialchars($user['full_name']) ?></td>
-                                <td><?= htmlspecialchars($user['email']) ?></td>
-                                <td><?= htmlspecialchars($user['phone'] ?: '—') ?></td>
-                                <td><?= date('d.m.Y', strtotime($user['created_at'])) ?></td>
-                                <td>
-                                    <a href="admin_panel.php?edit_user=<?= $user['id'] ?>" class="btn btn-sm btn-warning">✏️ Ред.</a>
-                                    <a href="admin_panel.php?delete_user=<?= $user['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Удалить пользователя <?= htmlspecialchars($user['login']) ?> и все его сообщения?')">🗑 Удалить</a>
-                                </td>
+                                <th>ID</th>
+                                <th>Логин</th>
+                                <th>ФИО</th>
+                                <th>Email</th>
+                                <th>Телефон</th>
+                                <th>Дата регистрации</th>
+                                <th>Действия</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($users as $user): ?>
+                                <tr>
+                                    <td><?= $user['id'] ?></td>
+                                    <td><?= htmlspecialchars($user['login']) ?></td>
+                                    <td><?= htmlspecialchars($user['full_name']) ?></td>
+                                    <td><?= htmlspecialchars($user['email']) ?></td>
+                                    <td><?= htmlspecialchars($user['phone'] ?: '—') ?></td>
+                                    <td><?= date('d.m.Y', strtotime($user['created_at'])) ?></td>
+                                    <td>
+                                        <a href="admin_panel.php?edit_user=<?= $user['id'] ?>" class="btn btn-sm btn-warning">✏️ Ред.</a>
+                                        <a href="admin_panel.php?delete_user=<?= $user['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Удалить пользователя <?= htmlspecialchars($user['login']) ?> и все его сообщения?')">🗑 Удалить</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
+
+<script>
+    // Переключение вкладок
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.getAttribute('data-tab');
+            // Убираем активный класс у всех кнопок и контента
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            // Активируем текущие
+            btn.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        });
+    });
+</script>
 </body>
 </html>
