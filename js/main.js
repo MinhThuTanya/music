@@ -206,6 +206,4 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('.video-background').style.backgroundImage = 'url("assets/fallback-bg.jpg")';
         });
     }
-    
-    
 });

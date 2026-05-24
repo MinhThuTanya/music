@@ -16,6 +16,7 @@ session_start();
 
 $action = $_GET['action'] ?? '';
 
+// Получение данных: из JSON, POST или GET параметра data
 $input = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw = file_get_contents('php://input');
@@ -23,7 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$input && !empty($_POST)) $input = $_POST;
     if (!$input && isset($_GET['data'])) $input = json_decode(urldecode($_GET['data']), true);
 } else {
-    $input = $_GET;
+    if (isset($_GET['data'])) {
+        $input = json_decode(urldecode($_GET['data']), true);
+    } else {
+        $input = $_GET;
+    }
 }
 
 $pdo = getDB();
@@ -127,7 +132,7 @@ if ($action === 'profile') {
     exit;
 }
 
-// Далее только для авторизованных
+// Действия ниже требуют авторизации
 $user_id = $_SESSION['user_id'] ?? null;
 if (!$user_id) {
     http_response_code(401);
@@ -137,9 +142,10 @@ if (!$user_id) {
 
 // Отправка сообщения
 if ($action === 'message') {
-    $subject = trim($input['subject'] ?? '');
-    $message = trim($input['message'] ?? '');
-    $privacy = isset($input['privacy']);
+    // Получаем данные из разных источников
+    $subject = trim($input['subject'] ?? $_GET['subject'] ?? '');
+    $message = trim($input['message'] ?? $_GET['message'] ?? '');
+    $privacy = isset($input['privacy']) || isset($_GET['privacy']);
 
     $errors = [];
     if (strlen($subject) > 255) $errors['subject'] = 'Тема не более 255 символов.';
@@ -153,22 +159,32 @@ if ($action === 'message') {
         exit;
     }
 
+    // Получаем данные пользователя
     $stmt = $pdo->prepare("SELECT full_name, email FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Пользователь не найден']);
+        exit;
+    }
 
+    // Вставляем сообщение
     $stmt = $pdo->prepare("INSERT INTO messages (user_id, name, email, subject, message) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$user_id, $user['full_name'], $user['email'], $subject, $message]);
-
-    echo json_encode(['success' => true, 'message' => 'Сообщение отправлено']);
+    if ($stmt->execute([$user_id, $user['full_name'], $user['email'], $subject, $message])) {
+        echo json_encode(['success' => true, 'message' => 'Сообщение отправлено']);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Ошибка сохранения сообщения']);
+    }
     exit;
 }
 
 // Редактирование сообщения
 if ($action === 'update_message') {
-    $message_id = (int)($input['id'] ?? 0);
-    $subject = trim($input['subject'] ?? '');
-    $message = trim($input['message'] ?? '');
+    $message_id = (int)($input['id'] ?? $_GET['id'] ?? 0);
+    $subject = trim($input['subject'] ?? $_GET['subject'] ?? '');
+    $message = trim($input['message'] ?? $_GET['message'] ?? '');
     if (!$message_id) {
         http_response_code(400);
         echo json_encode(['error' => 'ID сообщения не указан']);
