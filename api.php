@@ -213,5 +213,41 @@ if ($action === 'update_message') {
     exit;
 }
 
+// Обновление данных пользователя
+if ($action === 'update_profile') {
+    $user_id = $_SESSION['user_id'] ?? null;
+    if (!$user_id) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Не авторизован']);
+        exit;
+    }
+    $full_name = trim($input['full_name'] ?? $_GET['full_name'] ?? '');
+    $email = trim($input['email'] ?? $_GET['email'] ?? '');
+    $phone = trim($input['phone'] ?? $_GET['phone'] ?? '');
+
+    $errors = [];
+    if (empty($full_name) || !preg_match('/^[а-яА-Яa-zA-Z\s]+$/u', $full_name) || strlen($full_name) > 150)
+        $errors['full_name'] = 'Имя должно содержать только буквы и пробелы (макс. 150 символов).';
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL))
+        $errors['email'] = 'Введите корректный email.';
+    if (!empty($phone) && !preg_match('/^[\d\s\-\+\(\)]{6,20}$/', $phone))
+        $errors['phone'] = 'Телефон: 6–20 цифр, разрешены +, -, (, ), пробел.';
+
+    if (!empty($errors)) {
+        http_response_code(400);
+        echo json_encode(['errors' => $errors]);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?");
+    if ($stmt->execute([$full_name, $email, $phone, $user_id])) {
+        echo json_encode(['success' => true, 'message' => 'Данные обновлены']);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Ошибка обновления']);
+    }
+    exit;
+}
+
 http_response_code(404);
 echo json_encode(['error' => 'Неизвестное действие']);
