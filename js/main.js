@@ -207,5 +207,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    console.log('Chase Atlantic App загружен успешно!');
+    
 });
